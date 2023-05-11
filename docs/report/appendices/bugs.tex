@@ -1,0 +1,28 @@
+\chapter{SEcube SDK bugs}
+During the developement phase some bugs in the SDK code have been identified,
+fixed and reported to the maintainer.
+\section{SEcube firmware}
+\subsection{\texttt{se3\_key\_read}}
+\begin{itemize}
+	\item \emph{Severity}: critical
+	\item \emph{Cause}: buffer over-read: a wrong offset was used when
+		reading from a buffer, therefore some useful data were ignored
+		and some garbage values were read instead.
+	\item \emph{Consequence}: broken initialization of all algorithms
+		requiring cryptographic keys.
+\end{itemize}
+\subsection{\texttt{key\_find}}
+\begin{itemize}
+	\item \emph{Severity}: minor
+	\item \emph{Cause}:
+		\begin{itemize}
+			\item buffer over-read: a wrong offset was used when
+				reading from a buffer, therefore some useful data were ignored
+				and some garbage values were read instead.
+			\item reversed response: the firmware sent 0 in case of
+				hit and 1 in case of miss, but the L1 libraries
+				expected the opposite.
+		\end{itemize}
+	\item \emph{Consequence}: broken \texttt{L1::L1FindKey}.
+\end{itemize}
+

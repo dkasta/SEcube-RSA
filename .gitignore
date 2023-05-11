@@ -1,0 +1,15 @@
+*.launch
+SEcube USBStick Firmware/Project/STM32CubeIDE/USBStick/.settings/language.settings.xml
+*.o
+*.exe
+*.xml
+*.log
+*.aux
+*.nav
+*.out
+*.snm
+*.toc
+*.idx
+*.bcf
+*.bbl
+*.blg

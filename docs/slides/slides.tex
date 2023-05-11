@@ -1,0 +1,195 @@
+\documentclass[aspectratio=169]{beamer}
+\graphicspath{{graphics/}}
+
+\usepackage{soul}
+
+\usetheme[progressbar=frametitle]{metropolis}
+
+\title{Asymmetric cryptography for SEcube}
+\subtitle{Cybersecurity for Embedded Systems}
+\author{Brignone Giovanni \and Castagneri Dario \and Licastro Dario}
+\titlegraphic{\hfill\includegraphics[height=1.5cm]{logopolitonuovo}}
+\institute{Politecnico di Torino}
+\date{September 13, 2021}
+
+\begin{document}
+\begin{frame}
+	\maketitle
+\end{frame}
+
+\begin{frame}{Outline}
+	\setbeamertemplate{section in toc}[sections numbered]
+	\tableofcontents[hideallsubsections]
+\end{frame}
+
+\section{Introduction}
+
+\subsection{Cryptography}
+\begin{frame}{Cryptography}
+	\begin{itemize}
+		\item Science behind multiple aspects of information security
+		\item Central operations:
+			\begin{itemize}
+				\item Encryption
+				\item Decryption
+			\end{itemize}        
+		\item Two approaches:
+			\begin{itemize}
+				\item Symmetric
+				\item Asymmetric
+			\end{itemize}
+	\end{itemize}
+\end{frame}
+
+\subsection{RSA algorithm}
+\begin{frame}{RSA algorithm}
+	\begin{itemize}
+		\item Asymmetric key algorithm published in 1977
+		\item Keys are derived from two prime numbers
+		\item Security relies on the difficulty of factorizing large
+			numbers
+			\begin{itemize}
+				\item Increase key size to improve encryption
+					strength
+			\end{itemize}
+		\item Applications:
+			\begin{itemize}
+				\item Key distribution
+				\item Digital signature
+			\end{itemize}
+	\end{itemize}
+\end{frame}
+
+\subsection{Digital certificates}
+\begin{frame}{Digital certificates}
+	\begin{itemize}
+		\item Check identity and guarantee secure communications
+		\item Signed by a certificate authority or self-signed
+		\item X.509 is a standard format for public key certificates
+	\end{itemize}
+\end{frame}
+
+\subsection{Goal of the project}
+\begin{frame}{Goal of the project}
+	\begin{itemize}
+		\item Extends the SEcube SDK
+			\begin{itemize}
+				\item RSA-based asymmetric cryptosystem 
+					\begin{itemize}
+						\item Key storage
+						\item Symmetric key distribution
+						\item Digital signature
+					\end{itemize}
+				\item Digital certificates based on X.509 format
+			\end{itemize}
+	\end{itemize}
+\end{frame}
+
+\section{Development}
+\subsection{HW/SW partitioning}
+\begin{frame}{HW/SW partitioning}
+	\begin{itemize}[<+->]
+		\item<.-> \textbf{Initial idea}:
+			\begin{itemize}
+				\item HW: RSA functionality
+				\item<.-> SW: Drivers and APIs
+			\end{itemize}
+		\item<.-> \textbf{Issue}: Resource constraints: small FPGA
+			(7000 LUTs) and long keys (1024+ bits)
+		\item<.-> \textbf{Design exploration}:
+			Map to HW most critical parts of design only:
+			
+			Encryption/Decryption $\rightarrow$ Modular exponential
+			$\rightarrow$ \ul{Modular multiplication}
+		\item \textbf{Solution}:
+			No suitable architecture in literature $\Rightarrow$
+			Full SW implementation
+	\end{itemize}
+\end{frame}
+
+\subsection{Firmware side}
+\begin{frame}{Firmware side: RSA and X.509 library}
+	\begin{itemize}
+		\item Compatible with STM32F4429 micro controller:
+			\begin{itemize}
+				\item Written in \texttt{C}
+				\item Low resources usage
+			\end{itemize}
+		\item Compatible with SEcube Open Source project:
+			\begin{itemize}
+				\item Permissive license
+			\end{itemize}
+		\item Secure:
+			\begin{itemize}
+				\item Reliable developer
+				\item Widely used
+			\end{itemize}
+	\end{itemize}
+
+	\pause{}
+	\begin{center}
+		$\Rightarrow$ \texttt{mbedtls} by ARM
+	\end{center}
+\end{frame}
+\begin{frame}{Firmware side: Flash memory}
+	\textbf{RSA keys}:
+	\begin{itemize}
+		\item<.-> \ul{Problem:} Share same ID space of symmetric keys
+		\item<.-> \ul{Solution:}
+			\begin{itemize}
+				\item<.-> Pack RSA keys (multiple fields) into
+					symmetric keys nodes (single field)
+				\item<.-> Reuse symmetric keys code
+			\end{itemize}
+	\end{itemize}
+
+	\pause
+	\textbf{X.509 certificates}:
+	\begin{itemize}
+		\item<.-> \ul{Problem:}
+			No previous support for any kind of certificate
+		\item<.-> \ul{Solution:}
+			Dedicated node type and functions
+	\end{itemize}
+\end{frame}
+\begin{frame}{Firmware side: Dispatcher}
+	\begin{itemize}[<+->]
+		\item \textbf{Problem}:\\
+			Manage RSA/X.509 requests from host without cluttering
+			the \emph{Dispatcher Core}
+		\item<.-> \textbf{Solution}:\\
+			\emph{RSA Dispatcher} receives all the related requests
+			and calls specific functions
+		\item \ul{Security enhancement:}\\
+			\begin{itemize}
+				\item<.-> Each key has a type (generic,
+					crypto-only, sign-only)
+				\item<.-> Forbidden operations are blocked
+					before execution
+			\end{itemize}
+	\end{itemize}
+\end{frame}
+\subsection{Host side}
+\begin{frame}{Host side: L1 API}
+	\begin{itemize}
+		\item \textbf{Problem}:\\
+			\begin{itemize}
+				\item Expose RSA and X.509 functionalities
+					through APIs
+				\item Integrate new APIs with pre-existing ones
+			\end{itemize}
+		\item \textbf{Solution}:
+			\begin{itemize}
+				\item Reuse existing APIs (e.g.
+					\texttt{L1FindKey})
+				\item Extend existing APIs (e.g.
+					\texttt{L1KeyEdit}, \texttt{L1Encrypt},
+					\texttt{L1Decrypt}...)
+				\item Add new APIs (e.g. \texttt{L1Sign},
+					\texttt{L1Verify}...)
+			\end{itemize}
+	\end{itemize}
+\end{frame}
+\section{Demo}
+
+\end{document}

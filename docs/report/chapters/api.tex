@@ -1,0 +1,464 @@
+\chapter{API documentation}
+This section contains an overview of the level 1 APIs which expose asymmetric
+cryptography functionalities. More details can be found in the source code
+Doxygen-compatible comments.
+
+\section{SEcube RSA cryptography}
+\paragraph{Key management} \hspace{0pt} \\
+\begin{lstlisting}
+typedef struct se3Key_ {
+	uint32_t id;
+	uint16_t dataSize;
+	uint8_t* data;
+	se3AsymmKey asymmKey;
+} se3Key;
+
+typedef struct se3AsymmKey_ {
+	uint8_t* N;
+	uint8_t* E;
+	uint8_t* D;
+	uint8_t type;
+} se3AsymmKey;
+
+struct RSAKeyType {
+	enum {
+		SE3_RSA_KEY_GENERIC,
+		SE3_RSA_KEY_CIPHER,
+		SE3_RSA_KEY_SIGN
+	};
+};
+\end{lstlisting}
+
+\texttt{se3Key} is the structure containing symmetric or asymmetric keys.
+\texttt{id} is a 32-bit unique identifier, \texttt{datasize} is the key size,
+\texttt{data} is the pointer to the symmetric key value and \texttt{asymmKey}
+is a structure containing the asymmetric key data.
+The asymmetric key may be of signature type, encryption type or a generic type.
+
+\begin{lstlisting}
+struct KeyOpEdit {
+	enum {
+	  SE3_KEY_OP_ADD = 1,
+	  SE3_KEY_OP_DELETE = 2,
+	  SE3_KEY_OP_ADD_TRNG = 3,
+	  SE3_KEY_OP_ADD_RSA = 5,
+	  SE3_KEY_OP_ADD_GEN_RSA = 6
+	};
+};
+
+void L1::L1KeyEdit(se3Key& k, uint16_t op);
+\end{lstlisting}
+
+\texttt{L1KeyEdit} provides write access to RSA keys on SEcube device.
+It can perform three operations, depending on \texttt{op} value:
+\begin{itemize}
+	\item \texttt{SE3\_KEY\_OP\_ADD\_GEN\_RSA}: generate an RSA key \texttt{k.dataSize} Bytes long and store
+	    it to SEcube flash memory, associating it with the ID specified in
+		\texttt{k.id}.
+    \item \texttt{SE3\_KEY\_OP\_ADD\_RSA}: store the key provided in
+	    \texttt{k.asymmKey} to SEcube flash memory, associating it with the
+		ID specified in \texttt{k.id}.
+    \item \texttt{SE3\_KEY\_OP\_DELETE}: delete the key associated with the ID
+	    specified in \texttt{k.id} from SEcube flash memory (can be a
+		symmetric or an asymmetric key).
+\end{itemize}
+
+Note 1: Adding RSA key of size different from 1024, 2048, 4096 and 8192 bits is
+forbidden and generates an error.
+
+Note 2: \texttt{SE3\_KEY\_OP\_ADD} and \texttt{SE3\_Key\_OP\_ADD\_TRNG} are
+related to symmetric key functionalities.
+
+\begin{lstlisting}
+void L1::L1FindKey(uint32_t keyId, bool& found);
+\end{lstlisting}
+
+\texttt{L1FindKey} sets \texttt{found} to \texttt{true} if a key (symmetric or
+asymmetric) associated with \texttt{keyId} is stored to SEcube flash memory, to
+\texttt{false} otherwise.
+
+\begin{lstlisting}
+void L1::L1AsymmKeyGet(se3Key& k);
+\end{lstlisting}
+
+\texttt{L1AsymmKeyGet} reads from SEcube flash memory the public part (modulo
+$N$ and public exponent $E$) associated with the ID specified in \texttt{k.id}
+and stores it to \texttt{k}.
+
+\bigskip
+Note: for security reasons there is no API for reading private exponent $D$ of
+an RSA key stored to SEcube flash memory.
+
+\paragraph{Cryptography} \hspace{0pt} \\
+\begin{lstlisting}
+void L1::L1Encrypt(size_t plaintext_size, std::shared_ptr<uint8_t[]> plaintext,
+        SEcube_ciphertext& encrypted_data, uint16_t algorithm,
+        uint16_t algorithm_mode,
+        se3Key key, uint8_t on_the_fly);
+\end{lstlisting}
+
+When \texttt{algorithm} is set to \texttt{L1Algorithms::Algorithms::RSA} the
+data stored to \texttt{plaintext} is encrypted using the RSA algorithm. If
+\texttt{on\_the\_fly} is set to \texttt{true} the key stored to \texttt{key} is
+used, while if it is set to \texttt{false} the key stored to SEcube flash
+memory associated with the ID \texttt{key.id} is used.
+
+The generated ciphertext and other data related to the encryption operation are
+outputted to \texttt{encrypted\_data}.
+
+\bigskip
+\begin{itemize}
+	\item Important note: \texttt{plaintext\_size} can be at most
+		\texttt{key\_size - 2 - 2 * 32} bytes long, where
+		\texttt{key\_size} is the size of the key to be used in the
+		encryption operation and \texttt{32} is the size of the output
+		of the SHA256 hash function used in the encryption operation.
+		Greater \texttt{plaintext\_size} would raise an error.
+
+		If the user needs to encrypt longer messages he is in charge of
+		splitting messages into shorter chunks.
+		This is discouraged due to performance and security issues
+		\cite{rsa_long_msg}: consider using RSA for securely distribute
+		a symmetric key to be used for encrypting the long message.
+
+	\item Note: \texttt{algorithm\_mode} is ignored when \texttt{L1Encrypt}
+		uses the RSA algorithm.
+\end{itemize}
+
+\begin{lstlisting}
+class SEcube_ciphertext{
+public:
+	se3Key key;
+	uint16_t algorithm;
+	std::unique_ptr<uint8_t[]> ciphertext;
+	size_t ciphertext_size;
+	...
+};
+
+void L1::L1Decrypt(SEcube_ciphertext& encrypted_data, size_t& plaintext_size,
+        std::shared_ptr<uint8_t[]>& plaintext, uint8_t on_the_fly);
+\end{lstlisting}
+
+When \texttt{encrypted\_data.algorithm} is set to
+\texttt{L1Algorithms::Algorithms::RSA} the data stored to
+\texttt{encrypted\_data.ciphertext} is decrypted using the RSA algorithm.
+If \texttt{on\_the\_fly} is set to \texttt{true} the key stored to
+\texttt{encrypted\_data.key} is used, while if it is set to \texttt{false} the
+key stored to SEcube flash memory associated with the ID
+\texttt{encrypted\_data.key.id} is used.
+
+The generated plaintext and its length will be stored to \texttt{plaintext} and
+\texttt{plaintext\_size}.
+
+\paragraph{Digital signature} \hspace{0pt} \\
+\begin{lstlisting}
+void L1::L1Sign(const size_t input_size, const std::shared_ptr<uint8_t[]> input_data,
+		const se3Key key, uint8_t on_the_fly, size_t &sign_size,
+		std::shared_ptr<uint8_t[]> &sign);
+\end{lstlisting}
+
+\texttt{L1Sign} computes the RSA signature of \texttt{input\_size} bytes of
+data stored to \texttt{input\_data}.
+The result is stored to \texttt{sign} and its size to \texttt{sign\_size}.
+If \texttt{on\_the\_fly} is set to \texttt{true} the key stored to \texttt{key}
+is used, while if it is set to \texttt{false} the key stored to SEcube flash
+memory associated with the ID \texttt{key.id} is used.
+
+\begin{lstlisting}
+void L1::L1Verify(const size_t input_size,
+		const std::shared_ptr<uint8_t[]> input_data,
+		const se3Key key, uint8_t on_the_fly, const size_t sign_size,
+		const std::shared_ptr<uint8_t[]> sign, bool &verified)
+\end{lstlisting}
+\texttt{L1Verify} checks the validity of the RSA signature stored to
+\texttt{sign} and \texttt{sign\_size} bytes long, associated to the message
+stored to \texttt{input\_data} of \texttt{input\_size} bytes.
+If \texttt{on\_the\_fly} is set to \texttt{true} the key stored to \texttt{key}
+is used, while if it is set to \texttt{false} the key stored to SEcube flash
+memory associated with the ID \texttt{key.id} is used.
+If the signature is valid \texttt{verified} is set to \texttt{true}, to
+\texttt{false} otherwise.
+
+\subsection{Use cases}
+This section contains some code examples of the most common use cases of the
+RSA library.
+
+See \texttt{src/examples} for the complete source code.
+
+\subsubsection{Key generation}
+The following code snippet shows how to generate an RSA key \texttt{KEY\_SIZE}
+long (in Bytes) of type \texttt{KEY\_TYPE} and store it to flash, associating
+it to \texttt{KEY\_ID} id.
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// specify the key ID, size and type
+se3Key key = {
+	.id = KEY_ID,
+	.dataSize = KEY_SIZE,		// (in Bytes) can be 128, 256, 512 or 1024
+	.asymmKey = {
+		.type = KEY_TYPE	// can be any value of L1Key::RSAKeyType
+	}
+};
+
+// send the request for generating the key and wait for the response
+l1->L1KeyEdit(key, L1Commands::KeyOpEdit::SE3_KEY_OP_ADD_GEN_RSA);
+\end{lstlisting}
+\subsubsection{Symmetric key distribution}
+The following code snippets show how to securely distribute a secret key from
+the \emph{Sender} to the \emph{Receiver}, according to these steps:
+\begin{enumerate}
+	\item \emph{Receiver} reads its public key from flash and sends it to
+		\emph{Sender}.
+	\item \emph{Sender} encrypts the secret key using the \emph{Receiver}
+		public key and sends it to \emph{Receiver}.
+	\item \emph{Receiver} decrypts the secret key using its private key.
+\end{enumerate}
+
+\bigskip
+\begin{itemize}
+	\item \emph{Sender} side:
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// receive the RSA key to use for encrypting data from Receiver
+se3Key asymmKey;
+...
+
+SEcube_ciphertext cipher;
+
+// send the request for encrypting the symmetric key and wait for the response
+// (assuming SYMM_KEY is a buffer containing the symmetric key sized
+// SIMM_KEY_SIZE)
+l1->L1Encrypt(SYMM_KEY_SIZE, SYMM_KEY, cipher, L1Algorithms::Algorithms::RSA,
+		0, asymmKey, true);
+
+// send cipher to Receiver
+...
+\end{lstlisting}
+	\item \emph{Receiver} side:
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// specify the ID of the RSA key to use for encrypting data
+se3Key asymmKey = {
+	.id = ASYMM_KEY_ID
+};
+
+// send the request for getting the public part of the key to be used for
+// encrypting the symmetric key and wait for the response
+// (assuming an RSA key associated with ASYMM_KEY_ID is stored
+// to the SEcube flash memory)
+l1->L1AsymmKeyGet(asymmKey);
+
+// send asymmKey to Sender
+...
+
+// receive cipher from Sender
+SEcube_ciphertext cipher;
+...
+
+shared_ptr<uint8_t[]> symmKey;
+size_t symmKeySize;
+
+cipher.key.id = ASYMM_KEY_ID;
+
+// send the request for decrypting the symmetric key and wait for the response
+l1->L1Decrypt(cipher, symmKeySize, symmKey, false);
+\end{lstlisting}
+\end{itemize}
+\subsubsection{Digital signature}
+The following code snippets show how the \emph{Signer} signs a message and the
+\emph{Verifier} verifies it, according to these steps:
+\begin{enumerate}
+	\item \emph{Signer} reads its public key from flash and sends it to
+		a trusted key storage (such as a key server).
+	\item \emph{Signer} signs the message with its private key and sends
+		the original message and its signature to the \emph{Verifier}.
+	\item \emph{Verifier} receives the message and its signature from the
+		\emph{Signer} and the \emph{Signer} public key from the trusted
+		key storage.
+	\item \emph{Verifier} verifies the message.
+\end{enumerate}
+
+\bigskip
+\begin{itemize}
+	\item \emph{Signer} side:
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// specify the ID of the RSA key to use for signing data
+// (assuming an RSA key associated with KEY_ID is stored
+// to the SEcube flash memory)
+se3Key key = {
+	.id = KEY_ID
+};
+
+// send the request for getting the public part of the key to be used for
+// verifying the message and wait for the response
+l1->L1AsymmKeyGet(key);
+
+// send key to the trusted key storage
+...
+
+shared_ptr<uint8_t[]> sign;
+size_t signature_size;
+
+// send the request for signing the message and wait for the response
+// (assuming MESSAGE is a buffer containing the message sized
+// MESSAGE_SIZE)
+l1->L1Sign(MESSAGE_SIZE, MESSAGE, key, false, signature_size, signature);
+
+// send MESSAGE, MESSAGE_SIZE, signature and signature_size to Verifier
+...
+\end{lstlisting}
+	\item \emph{Verifier} side
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// receive message, message_size, signature and signature_size from Signer
+// and key from trusted storage
+shared_ptr<uint8_t[]> message;
+size_t message_size;
+shared_ptr<uint8_t[]> signature;
+size_t signature_size;
+se3Key key;
+...
+
+// send the request for verifying the signature and wait for the response
+bool verified;
+l1->L1Verify(message_size, message, key, true,
+		signature_size, signature, verified);
+\end{lstlisting}
+\end{itemize}
+
+\section{SEcube X.509 certificates}
+The functions manage the certificates stored in the SEcube device. They build
+the request buffer according to the desired operation and they check and parse
+the response buffer after the SEcube computations. They throw exceptions in
+case of errors.
+
+\begin{lstlisting}
+struct SEcube_certificate_info{
+	uint32_t cert_id;
+	uint32_t issuer_key_id;
+	uint32_t subject_key_id;
+	std::string serial_str;
+	std::string not_before;
+	std::string not_after;
+	std::string issuer_name;
+	std::string subject_name;
+};
+\end{lstlisting}
+
+\texttt{SEcube\_certificate\_info} is the data structure containing all the
+information required for the generation of an X.509 certificate.
+In particular, the fields are:
+\begin{itemize}
+	\item \texttt{cert\_id} is the ID to associate the certificate with,
+		when storing it to SEcube flash memory.
+	\item \texttt{issuer\_key\_id} and \texttt{subject\_key\_id}
+		are the IDs of the issuer and subject keys stored to SEcube
+		flash memory.
+	\item \texttt{serial\_str} is a string containing the serial number of
+		the certificate (in hexadecimal format).
+	\item \texttt{not\_before} and \texttt{not\_after} are strings
+		containing the start and the end of the validity period
+		(in \texttt{YYYYMMDDhhmmss} format).
+	\item \texttt{issuer\_name} and \texttt{subject\_name} are strings
+		containing comma-separated list of OID types and values
+		(e.g. \texttt{"C=UK,O=ARM,CN=mbed TLS CA"}) related to issuer
+		and subject.
+\end{itemize}
+
+\begin{lstlisting}
+enum CertOpEdit {
+	SE3_CERT_OP_ADD = 0,
+	SE3_CERT_OP_DELETE = 1
+};
+	
+void L1::L1CertificateEdit(const L1Commands::CertOpEdit op,
+		const SEcube_certificate_info info);
+\end{lstlisting}
+\texttt{L1CertificateEdit} is the function for managing certificates, the
+operation to be executed has to be specified in the first parameter. The
+certificate can be added or deleted.
+The second parameter is the certificate.
+\texttt{L1KeyEdit} provides write access to X.509 certificates on SEcube device.
+It can perform three operations, depending on \texttt{op} value:
+\begin{itemize}
+	\item \texttt{SE3\_CERT\_OP\_ADD}: generate an X.509 certificate according
+		to the information contained in \texttt{info} and store it to SEcube
+		flash memory, associating it with the ID specified in
+		\texttt{info.cert\_id}.
+	\item \texttt{SE3\_CERT\_OP\_DELETE}: delete the certificate associated
+		with the ID specified in \texttt{info.cert\_id} from SEcube flash
+		memory.
+\end{itemize}
+
+\begin{lstlisting}
+void L1::L1CertificateGet(const uint32_t cert_id, std::string &cert);
+\end{lstlisting}
+\texttt{L1CertificateGet} reads from SEcube flash memory the X.509 certificate
+associated with the ID specified in \texttt{cert\_id} and stores it to
+\texttt{cert}, in \texttt{PEM} format.
+
+\begin{lstlisting}
+void L1::L1CertificateFind(uint32_t certId, bool& found);
+\end{lstlisting}
+\texttt{L1CertificateFind} sets \texttt{found} to \texttt{true} if an X.509
+certificate associated with \texttt{certId} is stored to SEcube flash memory,
+to \texttt{false} otherwise.
+
+\begin{lstlisting}
+void L1::L1CertificateList(std::vector<uint32_t>& certList);
+\end{lstlisting}
+\texttt{L1CertificateList} returns the list of IDs of all the certificates
+stored to the SEcube device flash memory.
+
+\subsection{Use cases}
+This section contains some code examples of the most common use cases of the
+X.509 certificates library.
+
+See \texttt{src/examples} for the complete source code.
+
+\subsubsection{Certificate generation}
+The following code snippet shows how to generate an X.509 certificate and store
+it to flash, associating it with \texttt{CERT\_ID} id.
+\begin{lstlisting}
+unique_ptr<L1> l1 = make_unique<L1>();
+
+// login to the SEcube device
+...
+
+// specify the certificate information
+SEcube_certificate_info info = {
+	.cert_id = CERT_ID,
+	.issuer_key_id = ISSUER_KEY_ID,
+	.subject_key_id = SUBJECT_KEY_ID,
+	.serial_str = SERIAL,
+	.not_before = NOT_BEFORE,
+	.not_after = NOT_AFTER,
+	.issuer_name = ISSUER_NAME,
+	.subject_name = SUBJECT_NAME
+};
+
+// send the request for generating the key and wait for the response
+l1->L1CertificateEdit(L1Commands::CertOpEdit::SE3_CERT_OP_ADD, info);
+\end{lstlisting}
+

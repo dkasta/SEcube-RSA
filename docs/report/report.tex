@@ -1,0 +1,146 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% This file defines the style for your report.
+%
+% Search below for the keyword:   AUTHORS
+% insert the name of the authors
+%
+% Just run "sh compiletex.sh" to compile
+%
+% 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[10pt,  english, a4paper, titlepage, oneside]{book}
+\usepackage{babel}
+\usepackage{fancyhdr}
+\usepackage{makeidx}
+\usepackage{titlesec}
+\usepackage{listings}
+\usepackage{booktabs}
+
+\newenvironment{listato}{\footnotesize}{\normalsize }
+
+\textwidth 15.5cm
+\textheight 23cm
+\topmargin -1cm
+\oddsidemargin -0.5cm
+\linespread{1.1}
+
+\pagestyle{fancy}
+\lhead{}
+\chead{Cybersecurity for Embedded Systems}
+\lfoot{}
+\cfoot{}
+\rfoot{}
+\rhead{\thepage}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+\usepackage{empheq}
+\usepackage{verbatim}
+\usepackage{fancyvrb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[style=numeric,sorting=none]{biblatex}
+\usepackage{csquotes}
+
+\lstset { %
+    language=C++,
+    backgroundcolor=\color{black!5}, % set backgroundcolor
+    basicstyle=\footnotesize,% basic font setting
+    breaklines=true,
+    commentstyle=\color[rgb]{0,0.4,0},
+    identifierstyle=\ttfamily,
+    frame=lines,
+}
+
+\addbibresource{bibliography.bib}
+
+\titleformat{\chapter}[display]
+{\normalfont\Large\filcenter\sffamily}
+{\titlerule[0.5pt]%
+\vspace{1pt}
+\titlerule
+\vspace{1pc}
+\LARGE\MakeUppercase{\chaptertitlename} \thechapter
+}
+{1pc}
+{\titlerule
+\vspace{1pc}
+\Huge}
+
+\makeindex
+
+\begin{document}
+
+\frontmatter
+\begin{titlepage}
+\vspace{0cm}
+\centerline{
+\includegraphics[width=6cm]{./logopolitonuovo}} 
+\vspace{0.5cm}
+\centerline{\LARGE Politecnico di Torino}
+\vspace{2.5cm}
+\centerline{\huge Cybersecurity for Embedded Systems (01UDNOV)}
+\vspace{1cm}
+\centerline{\Huge Asymmetric cryptography for SEcube}
+\bigskip
+\centerline{\huge Final Project Report}
+\vspace{2cm}
+\centerline{\Large Master Degree in Computer Engineering}
+\vspace{3cm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+\centerline{\large Referents: Prof. Paolo Prinetto, Matteo Fornero,
+	Nicol\'o Maunero, Gianluca Roascio}
+\bigskip
+\vspace{1cm}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUTHORS
+% Change the name and the nu of the Group participants here
+%
+\centerline{\large Brignone Giovanni (s274148)}
+\centerline{\large Castagneri Dario (s277967)}
+\centerline{\large Licastro Dario (s280121)}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\vspace{1cm}
+\centerline{\large \today}
+\end{titlepage}
+
+\tableofcontents
+
+
+\mainmatter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%    
+% HERE IS WHERE YOU INCLUDE YOUR CHAPTERS
+%
+\input{chapters/abstract.tex}
+\input{chapters/introduction.tex}
+\input{chapters/implementation.tex}
+\input{chapters/api.tex}
+% and so on
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%    
+% HERE IS WHERE YOU INCLUDE YOUR APPENDICES (IF ANY)
+%
+\appendix
+\input{appendices/bugs.tex}
+% and so on
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\printbibliography
+\end{document}

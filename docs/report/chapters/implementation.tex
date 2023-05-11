@@ -1,0 +1,193 @@
+\chapter{Design and implementation}
+\section{Hardware and software partitioning}
+Before working on the actual implementation it is necessary to decide what
+functionality should be implemented in hardware (on the FPGA) and in software
+(running on the CPU).
+
+The most efficient solution in terms of performance and power consumption is to
+design at RTL the complete RSA module (composed of a key generation module and
+an encryption/decryption module), but the available FPGA provides 7000 LUTs
+only, therefore it is unfeasible to fit the entire design in HW.
+
+In order to reduce the FPGA area occupation of the design, the natural solution
+was to identify the most critical parts, to be implemented in HW, and implement
+the rest in SW.
+
+Since keys are generated once and used many times, the key generation module is
+less critical and it could be implemented in SW.  The encryption/decryption
+module is basically a modular exponential: its critical part is the modular
+multiplier.
+
+In this scenario it was necessary to find a reference architecture of a modular
+multiplier designed to be area efficient: the most widely accepted solution is
+the Montgomery multiplier, but all the implementations found in literature
+require a too high number of LUTs (e.g. for a 1024 bits multiplier, which is
+the bare minimum key length for a basic level of security: Blum's \cite{blum}
+smallest implementation requires 7572 LUTs, Zhang's \cite{ZHANG2007456} 9024
+LUTs, Amanor's \cite{amanor} 7680 LUTs, Daly's
+\cite{Daly02efficientarchitectures} 10806 LUTs).
+
+The Tenca and Koc's \cite{tenca_koc} architecture is theoretically adaptable to
+any area at disposal: the more area is available, the higher performance is
+achievable.
+
+Since the available area in the SEcube FPGA is very low and the time overhead
+for transferring data between CPU and FPGA would be non-negligible (in the
+smallest possible case, with 1024 bits keys, for a single multiplication it is
+needed to send 2048 bits for the multiplicands, 1024 bits for the modulus and
+receive 1024 bits of product, over a 16 bits bus), the performance gain would
+be low or null.
+
+Moreover, since RSA typical applications are to encrypt symmetric keys or
+message digests, performance are not very critical: what it is really critical
+is the implementation security, which is easier to obtain in software, thanks
+to the easier verification process.
+
+After all these considerations, the best solution appeared to be the usage of a
+well tested and trusted software library for the implementation of RSA
+functionality.
+
+\section{Firmware side}
+The SEcube firmware has been extended in order to support receiving, processing
+and responding to RSA functionality and key management and X.509 certificate
+management requests sent from the host.
+
+\subsection{RSA and X.509 library}
+The most convenient solution for getting core RSA functionalities (encrypt,
+decrypt, sign, verify) and X.509 certificates generation is to exploit an
+existing library.
+Since the library should run on an STM32F429 micro controller, it should have a
+small resources footprint and it should be implemented in C, being the only
+natively supported programming language.
+The library should also be included into the SEcube open source program,
+therefore it must have a permissive license.
+The most suitable libraries complying with the desirable characteristics are:
+\texttt{mbedtls} \cite{mbedtls}, \texttt{libtomcrypt} \cite{libtomcrypt} and
+\texttt{BearSSL} \cite{bearssl}.
+Considering stability, security and trustfulness of the developer,
+\texttt{mbedtls} by \texttt{ARM} has been chosen as the underlying library for
+this project.
+
+\bigskip
+The library has been configured to run on the SEcube processor and all the
+unused files have been removed.
+
+The SEcube True Random Number Generator is used whenever a random number has to
+be generated.
+
+\bigskip
+The digest for the digital signature is computed by the SHA256 algorithm.
+
+\subsection{Flash memory}
+\subsubsection{RSA key storage}
+\begin{itemize}
+	\item \textbf{Key structure}
+		\begin{lstlisting}
+typedef struct se3_rsa_flash_key_ {
+	uint32_t id;
+	uint16_t key_size;
+	uint8_t type;
+	uint8_t public_only;
+	uint8_t* N;
+	uint8_t* E;
+	uint8_t* D;
+} se3_rsa_flash_key;
+		\end{lstlisting}
+		\texttt{se3\_rsa\_flash\_key} is the structure holding all the
+		information needed for storing RSA keys to flash.
+		In particular it contains:
+		\begin{itemize}
+			\item \texttt{id}: the unique identifier of the key.
+			\item \texttt{key\_size}: the size of \texttt{N},
+				\texttt{E} and \texttt{D} arrays.
+			\item \texttt{type}: it specifies the operations that
+				can be performed with the key (crypto only,
+				signature only or both)
+				(see~\ref{subsubsec:perf_and_sec} for more
+				details).
+			\item \texttt{public\_only}: it is set to \texttt{true}
+				when the key is composed of its public part
+				only (therefore \texttt{D} content is ignored).
+			\item \texttt{N}, \texttt{E} and \texttt{D}: the raw key
+				data.
+		\end{itemize}
+
+	\item \textbf{Flash memory} \\
+		In order to avoid code duplication for better maintainability
+		and integration, RSA keys are stored to flash memory in the same
+		flash node type (\texttt{se3\_flash\_key}) and in the same IDs
+		space as symmetric keys, using the functions of
+		\texttt{se3\_key}.
+
+		\bigskip
+		\texttt{se3\_rsa\_keys.c} includes all the functions required
+		for managing RSA keys stored to flash.
+		It operates as an interface for RSA keys over the functions
+		provided by \texttt{se3\_keys.c}: \texttt{se3\_flash\_key}
+		contains a single data buffer, while
+		\texttt{se3\_rsa\_flash\_key} contains multiple data fields,
+		therefore it is necessary to concatenate the different slices
+		into a single buffer when writing to flash
+		(performed by the \texttt{se3\_rsa\_to\_plain\_flash} function)
+		and to split into the different fields when reading from flash
+		(performed by the \texttt{se3\_plain\_to\_rsa\_flash} function).
+\end{itemize}
+
+\subsubsection{X.509 certificates storage}
+The SEcube SDK did not provide any kind of certificate support, therefore a new
+flash node type have been implemented specifically for X.509 certificates,
+together with the functions needed for reading and writing to and from flash, in
+\texttt{se3\_x509.c}.
+
+\subsection{Dispatcher}
+When the host sends a request to the SEcube device, the request is processed by
+the \emph{Communication core} and forwarded to the \emph{Dispatcher core} which
+is in charge of calling the requested functionality.  Since the
+\emph{Dispatcher core} can fit a limited number of functionalities, RSA
+functionalities are not directly called: \emph{Dispatcher core} calls a
+dedicated \emph{RSA dispatcher core}, which in turn calls the specific RSA
+functionality.
+
+\subsubsection{\texttt{se3\_rsa}}
+\texttt{se3\_rsa.c} exposes all the RSA functionalities to the dispatcher.
+All the \texttt{se3\_rsa} functions have a similar structure:
+\begin{enumerate}
+	\item Parse the request from the host, checking its validity.
+	\item Perform the RSA computation by exploiting the underlying RSA
+		library.
+	\item Build the response to the host.
+\end{enumerate}
+
+Among the request validity checks there is the key type check: if the request
+asks to perform a crypto operation using a signature-only key or a signature
+operation using a crypto-only key, an error code is returned, instead of
+performing the requested operation.
+
+\section{Host side}
+The SEcube host side code has been extended in order to add APIs for accessing
+RSA functionality and key management and X.509 certificate management of the
+SEcube device.
+These APIs also take care of checking correctness of inputs and outputs.
+
+This extension has been performed while trying to maximize the integration with
+the existing APIs: some APIs have been reused (\texttt{L1FindKey}), some have
+been extended to support additional features (\texttt{L1KeyEdit},
+\texttt{L1Encrypt}, \texttt{L1Decrypt}), while APIs peculiar to RSA and X.509
+certificates have been added trying to comply with existing hierarchies and
+conventions.
+
+\subsection{Communication timeout}
+RSA key generation is a very complex operation, since it has to generate very
+long random numbers (at least 1024 bits) until it generates a prime number,
+therefore it may take a huge amount of time.
+
+The communication between SEcube device and host was limited by a timeout of 10
+seconds (defined in \texttt{L0.h} as \texttt{SE3\_TIMEOUT}), resulting in an
+exception before RSA key generation could complete.
+
+\bigskip
+According to empirical measurements, 1000 seconds should be enough for
+generating 2048 bits keys, therefore the timeout has been set to that value.
+
+It is advisable to use longer timeouts when generating longer RSA keys.
+

@@ -1,0 +1,10 @@
+\chapter*{Abstract}
+The purpose of this project is to add support to RSA cryptography and X.509
+certificates to SEcube devices, by adding these functionalities to the firmware
+and exposing them through a level 1 API on the host side.
+\par
+The initial objective was to implement the RSA cipher in hardware, on the
+SEcube FPGA, but due to limitations of the HW at disposal, a full software
+implementation seemed the best choice, using \texttt{mbedtls} by ARM as
+underlying library for cryptography functionalities.
+

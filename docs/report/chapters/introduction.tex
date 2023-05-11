@@ -1,0 +1,197 @@
+\chapter{Introduction}
+This manual covers the details and the features of the Asymmetric cryptography
+implementation of the SEcube\textsuperscript{\texttrademark} Open Source
+Security Platform. To learn more about the
+SEcube\textsuperscript{\texttrademark} and the capabilities of this Open Source
+Security Platform, please check out the SEcube™ SDK documentation.  Asymmetric
+cryptography implementation concerns asymmetric key management, an RSA cipher,
+Digital signature and X.509 certificates.
+
+\section{Cryptography}
+Cryptography is the discipline in charge of developing techniques for securing
+communication in presence of opponents willing to read and alter messages.
+Encryption uses an algorithm and a key to transform an input (i.e., plaintext)
+into an encrypted output (i.e., ciphertext).
+
+Algorithms are considered secure if an attacker cannot determine any properties
+of the plaintext or key, given the ciphertext. An attacker should not be able
+to determine anything about a key given a large number of plaintext/ciphertext
+combinations which used the key.
+
+There are typically two main kind of cryptographic solutions:
+\begin{itemize}
+	\item \emph{Symmetric cryptography}: the actors involved in the
+		communication must share a common secret to secure the
+		communication. Performance is generally acceptable, therefore
+		it is suitable for encrypting large amounts of data.
+		Communication problem is not completely solved: the common
+		secret still has to be confidentially shared.
+	\item \emph{Asymmetric cryptography}: the actors can securely
+		communicate without any shared common secret.
+		Communication problem is solved, but it is necessary to pay in
+		terms of performance.
+\end{itemize}
+
+\subsection{Asymmetric cryptography}
+\subsubsection{Characteristics}
+In an asymmetric (or public-key) cryptosystem each actor owns a pair of keys:
+private, known to the owner only, and public, known to anyone.
+There is a single algorithm $F(key, msg)$ which can be applied to different
+keys, thanks to its reciprocal properties:
+\begin{itemize}
+	\item \emph{Encryption:} $ciphertext = F(key_{pub, recipient}, plaintext)$
+	\item \emph{Decryption:} $plaintext = F(key_{priv, recipient}, ciphertext)$
+\end{itemize}
+
+In order to counteract brute force attacks, the keys must be very long (i.e.
+minimum 2048 bits for an acceptable security level, with today algorithms and
+technology).
+
+\subsubsection{Applications}
+\begin{itemize}
+	\item \textbf{Symmetric key distribution}
+		To solve the secure communication problem between actors $A$ and $B$:
+		\begin{enumerate}
+			\item $A$ generates a symmetric cryptosystem secret.
+			\item $A$ encrypts the secret using $B$'s public key.
+			\item $A$ sends the encrypted secret over an untrusted channel to $B$.
+			\item $B$ decrypts the secret using its own private key.
+			\item $A$ and $B$ now share the common secret and can start using symmetric
+				cryptography.
+		\end{enumerate}
+
+		This solution guarantees confidentiality.
+
+	\item \textbf{Digital signature}
+		\begin{itemize}
+			\item \emph{Sign:} the signer computes the digest (e.g. SHA256) of the
+				message to be signed, then applies the asymmetric cryptography
+				algorithm using its private key.
+			\item \emph{Verify:} the verifier computes the digest of the signed message
+				and applies the asymmetric cryptography algorithm using the signer
+				public key: if the two digests match, the signature is
+				verified.
+		\end{itemize}
+		This solution guarantees authentication and integrity, moreover, if keys are
+		taken from certificates by Certification Authorities,
+		non-repudiation is guaranteed too.
+\end{itemize}
+
+\subsection{RSA cryptography}
+The RSA algorithm is the basis of a public-key cryptosystem, a suite of
+cryptographic algorithms used for security purposes.
+RSA was first described publicly in 1977 by Ron Rivest, Adi Shamir and Leonard
+Adleman of the Massachusetts Institute of Technology, although the 1973
+creation of a public key algorithm by British mathematician Clifford Cocks has
+been kept secret by the UK's GCHQ until 1997.
+PKCS (Public Key Cryptography Standards) are specifications used in computer
+cryptography. PKCS\#1 \cite{rsa}, in particular, identifies the RSA
+cryptosystem standard.
+\subsubsection{Algorithm}
+\begin{itemize}
+	\item \textbf{Key generation}:\\
+		\begin{enumerate}
+			\item select $P$ and $Q$ such that they are prime, big, random and secret.
+			\item let $N = P \cdot Q$ and $\varphi = (P - 1) \cdot (Q - 1)$
+			\item select $E$ such that $1 < E < \varphi$ and $E$ and $\varphi$ are coprime
+			\item let $D = E^{-1} \mod \varphi$
+			\item public key is composed of $\{E, N\}$ and can be shared to anyone;
+				private key is composed of $\{D, N\}$ and must be kept secret
+		\end{enumerate}
+	\item \textbf{Modular exponential}:\\
+		the keys are chosen in such a way that: $(P^E)^D \mod N \equiv (P^D)^E \mod
+		N$, therefore the primitives provided by PKCS\#1 are:
+		\begin{itemize}
+			\item \emph{RSA Encryption Primitive}:\\
+				anyone (since $E$ and $N$ are public) can encrypt a message by applying:
+				\[ciphertext = (plaintext)^E \mod N\]
+			\item \emph{RSA Decryption Primitive}:\\
+				the owner of the key only (since $D$ is private) can decrypt the
+				ciphertext by applying:
+				\[plaintext = (ciphertext)^D \mod N\]
+			\item \emph{RSA Signature Primitive}:\\
+				the owner of the key only (since $D$ is private) can sign a message by
+				applying:
+				\[signature = (hash(message))^D \mod N\]
+			\item \emph{RSA Verification Primitive}:\\
+				anyone (since $E$ and $N$ are public) can verify a signature by:
+				\begin{itemize}
+					\item retrieving the signed has by applying:
+						\[hash = (signature)^E \mod N\]
+					\item computing the $hash$ of the $message$ again
+					\item comparing the two hashes
+				\end{itemize}
+		\end{itemize}
+\end{itemize}
+
+\subsubsection{Performance and security}\label{subsubsec:perf_and_sec}
+\begin{itemize}
+	\item \textbf{Key length}:\\
+		The factorization complexity is $O(e^n)$, therefore, in order
+		to make it unfeasible to break RSA by means of brute force, it
+		is necessary to use very long keys (1024 bits for a bare
+		minimum level of security, but 2048 bits or more are
+		recommended).
+
+		The exponentiation complexity is instead $O(\log^3n)$,
+		therefore RSA performance are low and it is discouraged to
+		encrypt long messages with such an algorithm, but it is
+		suitable for secure key exchange and digital signature.
+
+	\item \textbf{Public key optimizations}:\\
+		Execution time of exponential highly depends on the number of
+		\texttt{1}s in the exponent (in binary format), therefore $E$
+		is usually chosen between 3, 17 or 65537, since they are prime
+		and their binary representations contain 2 \texttt{1}s only.
+		65537 is preferable, since large exponents guarantees higher
+		security levels.
+
+	\item \textbf{Private key optimizations}:\\
+		The Chinese Remainder Theorem can be used to make private-key
+		operations up to 4 times faster.
+
+	\item \textbf{Dedicated keys}:\\
+		When providing RSA functionalities as a service (e.g., from a
+		server which accepts messages and encrypts/signs them) it is
+		important to use separate keys for encryption and for signing.
+		Otherwise an attacker could compute the hash of a message, ask
+		to decrypt it and then claim it was actually signed with that
+		particular key.
+\end{itemize}
+
+\subsection{X.509 certificates}
+X.509 is a standard format for public key certificates, digital documents that
+securely associate cryptographic key pairs with identities such as websites,
+individuals, or organizations.  It is based on the internationally trusted
+International Telecommunications Union (ITU) X.509 standard, which defines the
+format of public key infrastructure (PKI) certificates. They are used to manage
+identity and security in internet communications and computer networking. They
+are unobtrusive and ubiquitous, and we encounter them every day when using
+websites, mobile apps, online documents, and connected devices.
+
+\section{SEcube\textsuperscript{\texttrademark}}
+SEcube\textsuperscript{\texttrademark} is an open-source security-oriented
+hardware and software platform.
+
+\subsection{Hardware}
+The core of the SEcube\textsuperscript{\texttrademark} Hardware device family
+is a chip which embeds three hardware components: an STM32F429 processor (which
+includes an ARM Cortex M4 core and a True Random Number Generator), a Lattice
+MachXO2-7000 FPGA and an Infineon SLJ52G EAL5+ certified smart-card.\\ The
+Lattice MachXO2-7000 device is based on a fast, non-volatile logic array whose
+main features are: 7,000 LUTs, 240 Kbits of embedded block RAM, 256 Kbits of
+user Flash memory.  The communication between FPGA and CPU can be performed
+through a 16-bit internal bus.
+
+\subsection{Software}
+SEcube\textsuperscript{\texttrademark} SDK is composed of:
+\begin{itemize}
+	\item \emph{Host}: code to be run on a desktop computer which provides
+		libraries to control SEcube and expose its functionalities.
+	\item \emph{Firmware}: code to be run on a SEcube device which provide
+		libraries for communicating with host and the implementations of
+		symmetric cryptosystems and hashing functions.
+\end{itemize}
+The purpose of this project is to extend the SDK introducing the basics of
+asymmetric cryptography.
+
